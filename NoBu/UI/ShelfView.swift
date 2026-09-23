@@ -3,6 +3,10 @@ import SwiftUI
 /// 本棚。状態（読んでる／買った／気になる／読了／保留）で切り替える書影の格子。
 /// 読了だけは年ごとの見出しでまとめる（Web 版の shelf.tsx と同じ並び）。
 /// 保留はいちばん右（めったに見ないので端へ・2026-09-23）。
+///
+/// ⚠️ **格子から状態は変えられない**（2026-09-23）。書影を押すと本のページへ行くだけ。
+/// 状態を変える入口を本のページ一本に絞ってあるのは、記録が RSS で公開されるため——
+/// 一覧での誤タップがそのまま公開に載るのを避ける。
 struct ShelfView: View {
     private static let tabs: [Status] = [.reading, .bought, .want, .read, .paused]
     private static let columns = [GridItem(.adaptive(minimum: 84, maximum: 120), spacing: 14, alignment: .top)]
@@ -47,6 +51,7 @@ struct ShelfView: View {
         .safeAreaInset(edge: .top) { picker }
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { SettingsToolbarItem() }
         .bookDestination()
         .refreshable { await load() }
         // タブを変えたとき・他の画面で登録したときに読み直す

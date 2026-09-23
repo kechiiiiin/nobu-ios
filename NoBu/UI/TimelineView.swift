@@ -49,6 +49,7 @@ struct TimelineView: View {
         .listStyle(.plain)
         .navigationTitle("記録")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { SettingsToolbarItem() }
         .bookDestination()
         .refreshable { await reload() }
         // 他の画面で登録・状態変更をしたら読み直す（本棚と同じ合図）
