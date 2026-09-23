@@ -1,0 +1,11 @@
+# xcodegen が作る生成物（コミットしない。必ず `make generate` から作る）
+*.xcodeproj
+*.xcworkspace
+
+# ビルド成果物
+build/
+build-check/
+DerivedData/
+
+# macOS
+.DS_Store

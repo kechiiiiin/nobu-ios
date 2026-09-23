@@ -1,0 +1,162 @@
+import Foundation
+
+/// Worker の `shared/types.ts` と同じ形。フィールド名はサーバーの JSON に合わせる（snake_case のまま）。
+
+enum Status: String, Codable, CaseIterable, Identifiable, Sendable {
+    case want, bought, reading, read
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .want:    return "気になる"
+        case .bought:  return "買った"
+        case .reading: return "読んでる"
+        case .read:    return "読了"
+        }
+    }
+}
+
+struct Owned: Codable, Hashable, Sendable {
+    let id: Int
+    let status: Status
+}
+
+/// 検索・ISBN 引きの候補（まだ本棚に無い本）。POST /api/books にそのまま送り返す
+struct Candidate: Codable, Hashable, Sendable, Identifiable {
+    var isbn13: String?
+    var title: String
+    var author: String?
+    var publisher: String?
+    var pubdate: String?
+    var cover_url: String?
+    var cover_kind: String
+    var cover_unverified: Bool?
+    var meta_source: String
+    var owned: Owned?
+
+    var id: String { (isbn13 ?? "") + title }
+
+    /// 「著者・出版社・発行年」の1行
+    var meta: String {
+        [author, publisher, pubdate.map { String($0.prefix(4)) }]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "・")
+    }
+}
+
+struct Book: Codable, Hashable, Sendable, Identifiable {
+    var id: Int
+    var isbn13: String?
+    var title: String
+    var author: String?
+    var publisher: String?
+    var pubdate: String?
+    var cover_url: String?
+    var cover_kind: String
+    var meta_source: String
+    var status: Status
+    var status_at: String
+    /// 最新の読了日（JST の 'YYYY-MM-DD'）
+    var finished_at: String?
+    var is_public: Int
+    var created_at: String
+    var updated_at: String
+    /// 一覧のときだけ: 読書中の回の読み始めた日
+    var reading_since: String?
+
+    var meta: String {
+        [publisher, pubdate].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "・")
+    }
+}
+
+/// 読書の1回。started_on が nil＝読み始め不明、finished_on が nil＝読書中（または中断中）
+struct ReadingSession: Codable, Hashable, Sendable, Identifiable {
+    var id: Int
+    var book_id: Int
+    var started_on: String?
+    var finished_on: String?
+    var created_event_id: Int?
+    var finished_event_id: Int?
+    var created_at: String
+    var updated_at: String
+}
+
+struct BookEvent: Codable, Hashable, Sendable, Identifiable {
+    var id: Int
+    var book_id: Int
+    var from_status: Status?
+    var to_status: Status
+    var at: String
+    var via: String?
+}
+
+struct BookNote: Codable, Hashable, Sendable, Identifiable {
+    var id: Int
+    var book_id: Int
+    var body: String
+    var is_public: Int
+    var created_at: String
+    var updated_at: String
+}
+
+struct SearchResponse: Codable, Sendable {
+    var candidates: [Candidate]
+    var sources: [String]
+    var rakuten: String
+}
+
+struct AddResponse: Codable, Sendable {
+    /// "created" / "advanced" / "already"
+    var result: String
+    var book: Book
+    var event_id: Int?
+    var session: ReadingSession?
+}
+
+struct PatchResponse: Codable, Sendable {
+    var book: Book
+    var event_id: Int?
+    var session: ReadingSession?
+}
+
+struct BookDetail: Codable, Sendable {
+    var book: Book
+    var notes: [BookNote]
+    var events: [BookEvent]
+    /// 新しい順
+    var sessions: [ReadingSession]
+}
+
+struct MeResponse: Codable, Sendable {
+    var email: String
+    var rakuten: Bool
+    var counts: [String: Int]
+}
+
+struct NoteResponse: Codable, Sendable { var note: BookNote }
+struct SessionResponse: Codable, Sendable { var session: ReadingSession; var book: Book }
+struct BookResponse: Codable, Sendable { var book: Book }
+struct UndoResponse: Codable, Sendable { var result: String; var book: Book? }
+struct OKResponse: Codable, Sendable { var ok: Bool }
+
+/// 手入力（見つからない本）
+struct ManualBook: Codable, Sendable {
+    var title = ""
+    var author = ""
+    var publisher = ""
+    var pubdate = ""
+    var isbn13 = ""
+}
+
+/// 1回分の表示（web の sessionText と同じ）。
+/// 例: 2026-09-10 〜 2026-09-23（14日）／2026-09-10 〜（読書中・3日目）
+func sessionText(_ s: ReadingSession, bookStatus: Status, isLatestOpen: Bool, today: String = JST.today()) -> (range: String, note: String) {
+    let from = s.started_on ?? "（読み始め不明）"
+    if let fin = s.finished_on {
+        let note = s.started_on.map { "\(JST.daysInclusive(from: $0, to: fin))日" } ?? ""
+        return ("\(from) 〜 \(fin)", note)
+    }
+    if bookStatus == .reading, isLatestOpen, let started = s.started_on {
+        return ("\(from) 〜", "読書中・\(JST.daysInclusive(from: started, to: today))日目")
+    }
+    return ("\(from) 〜", "中断")
+}
