@@ -176,6 +176,15 @@ final class NobuAPI {
 
     func deleteSession(_ id: Int) async throws -> BookResponse { try await call("DELETE", "/api/sessions/\(id)") }
 
+    /// 読んだ日にする（`on` を省くと今日）。二度押しても増えない
+    func markDay(bookId: Int, on: String? = nil) async throws -> ReadingDay {
+        let body: [String: JSONValue] = on.map { ["on": .string($0)] } ?? [:]
+        let r: DayResponse = try await call("POST", "/api/books/\(bookId)/days", body: body)
+        return r.day
+    }
+
+    func unmarkDay(bookId: Int, on: String) async throws { _ = try await raw("DELETE", "/api/books/\(bookId)/days/\(on)") }
+
     func refetch(_ id: Int) async throws -> BookResponse { try await call("POST", "/api/books/\(id)/refetch") }
 
     func remove(_ id: Int) async throws { _ = try await raw("DELETE", "/api/books/\(id)") }

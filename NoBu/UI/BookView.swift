@@ -53,6 +53,8 @@ struct BookView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
 
+                ReadingDaysSection(book: book, days: detail.days ?? [], sessions: detail.sessions, onChanged: { await load() })
+
                 SessionsSection(book: book, sessions: detail.sessions, onChanged: { await load() })
 
                 notes(detail)
@@ -80,11 +82,14 @@ struct BookView: View {
     }
 
     private func statusPicker(_ book: Book) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             ForEach(Status.allCases) { status in
                 Button { Task { await setStatus(status) } } label: {
+                    // 5つ並ぶ（気になる／買った／読んでる／保留／読了）ので、狭い画面では縮める
                     Text(status.label)
-                        .font(.subheadline)
+                        .font(.footnote)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                 }

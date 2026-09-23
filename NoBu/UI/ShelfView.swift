@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// 本棚。状態（読んでる／買った／気になる／読了）で切り替える書影の格子。
+/// 本棚。状態（読んでる／保留／買った／気になる／読了）で切り替える書影の格子。
 /// 読了だけは年ごとの見出しでまとめる（Web 版の shelf.tsx と同じ並び）。
 struct ShelfView: View {
-    private static let tabs: [Status] = [.reading, .bought, .want, .read]
+    private static let tabs: [Status] = [.reading, .paused, .bought, .want, .read]
     private static let columns = [GridItem(.adaptive(minimum: 84, maximum: 120), spacing: 14, alignment: .top)]
 
     @Environment(AppModel.self) private var model
@@ -70,7 +70,7 @@ struct ShelfView: View {
         VStack(alignment: .leading, spacing: 4) {
             CoverView(url: book.cover_url, title: book.title, size: .small)
             Text(book.title).font(.caption2).lineLimit(2).foregroundStyle(.primary)
-            if book.status == .reading, let since = book.reading_since {
+            if book.status == .reading || book.status == .paused, let since = book.reading_since {
                 Text("\(since)〜").font(.system(size: 10)).foregroundStyle(.secondary)
             } else if book.status == .read, let finished = book.finished_at {
                 Text("\(JST.jstDate(finished)) 読了").font(.system(size: 10)).foregroundStyle(.secondary)

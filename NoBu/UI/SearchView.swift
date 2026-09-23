@@ -206,8 +206,9 @@ struct ManualFormView: View {
                 }
             }
             Section {
+                // 登録のときに選べるのは4つ（「保留」は読み始めてから本のページで選ぶ。Web 版と同じ）
                 Picker("状態", selection: $status) {
-                    ForEach(Status.allCases) { Text($0.label).tag($0) }
+                    ForEach([Status.want, .bought, .reading, .read]) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }

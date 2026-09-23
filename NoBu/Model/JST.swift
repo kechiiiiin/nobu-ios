@@ -42,6 +42,38 @@ enum JST {
         return (calendar.dateComponents([.day], from: a, to: b).day ?? 0) + 1
     }
 
+    // ---- カレンダー（月表示）用。'YYYY-MM' を月として扱う（`shared/dates.ts` と同じ約束）
+
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = timeZone
+        f.dateFormat = "yyyy-MM"
+        return f
+    }()
+
+    /// その日付の月（'2026-09-23' → '2026-09'）
+    static func month(of day: String) -> String { String(day.prefix(7)) }
+
+    /// 月に n か月足す
+    static func addMonths(_ month: String, _ n: Int) -> String {
+        guard let d = monthFormatter.date(from: month), let moved = calendar.date(byAdding: .month, value: n, to: d) else { return month }
+        return monthFormatter.string(from: moved)
+    }
+
+    /// 曜日（0＝日曜）
+    static func weekday(of day: String) -> Int {
+        guard let d = dayFormatter.date(from: day) else { return 0 }
+        return calendar.component(.weekday, from: d) - 1
+    }
+
+    /// その月の日付を1日から順に
+    static func days(inMonth month: String) -> [String] {
+        guard let first = monthFormatter.date(from: month),
+              let range = calendar.range(of: .day, in: .month, for: first) else { return [] }
+        return range.map { "\(month)-" + String(format: "%02d", $0) }
+    }
+
     /// ISO8601 の日時（サーバーの `created_at` など）→ JST の日付。日付だけならそのまま
     static func jstDate(_ iso: String) -> String {
         if iso.count == 10 { return iso }

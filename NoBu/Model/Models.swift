@@ -2,8 +2,9 @@ import Foundation
 
 /// Worker の `shared/types.ts` と同じ形。フィールド名はサーバーの JSON に合わせる（snake_case のまま）。
 
+/// paused（保留）＝読んでいる途中で止めているもの。読書の回は開いたまま残る
 enum Status: String, Codable, CaseIterable, Identifiable, Sendable {
-    case want, bought, reading, read
+    case want, bought, reading, paused, read
 
     var id: String { rawValue }
     var label: String {
@@ -11,6 +12,7 @@ enum Status: String, Codable, CaseIterable, Identifiable, Sendable {
         case .want:    return "気になる"
         case .bought:  return "買った"
         case .reading: return "読んでる"
+        case .paused:  return "保留"
         case .read:    return "読了"
         }
     }
@@ -80,6 +82,16 @@ struct ReadingSession: Codable, Hashable, Sendable, Identifiable {
     var updated_at: String
 }
 
+/// 実際に読んだ日（JST の 'YYYY-MM-DD'）。同じ本の同じ日は1行だけ
+struct ReadingDay: Codable, Hashable, Sendable, Identifiable {
+    var id: Int
+    var book_id: Int
+    var on: String
+    /// 状態の切り替えで自動的に入った日の印（手で押した「今日読んだ」は nil）
+    var created_event_id: Int?
+    var created_at: String
+}
+
 struct BookEvent: Codable, Hashable, Sendable, Identifiable {
     var id: Int
     var book_id: Int
@@ -124,6 +136,9 @@ struct BookDetail: Codable, Sendable {
     var events: [BookEvent]
     /// 新しい順
     var sessions: [ReadingSession]
+    /// 読んだ日。新しい順。
+    /// ⚠️ Worker より先にアプリだけ新しくなっても本のページが壊れないよう、省略可にしてある
+    var days: [ReadingDay]?
 }
 
 struct MeResponse: Codable, Sendable {
@@ -133,6 +148,7 @@ struct MeResponse: Codable, Sendable {
 }
 
 struct NoteResponse: Codable, Sendable { var note: BookNote }
+struct DayResponse: Codable, Sendable { var day: ReadingDay }
 struct SessionResponse: Codable, Sendable { var session: ReadingSession; var book: Book }
 struct BookResponse: Codable, Sendable { var book: Book }
 struct UndoResponse: Codable, Sendable { var result: String; var book: Book? }
