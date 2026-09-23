@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// 本棚。状態（読んでる／保留／買った／気になる／読了）で切り替える書影の格子。
+/// 本棚。状態（読んでる／買った／気になる／読了／保留）で切り替える書影の格子。
 /// 読了だけは年ごとの見出しでまとめる（Web 版の shelf.tsx と同じ並び）。
+/// 保留はいちばん右（めったに見ないので端へ・2026-09-23）。
 struct ShelfView: View {
-    private static let tabs: [Status] = [.reading, .paused, .bought, .want, .read]
+    private static let tabs: [Status] = [.reading, .bought, .want, .read, .paused]
     private static let columns = [GridItem(.adaptive(minimum: 84, maximum: 120), spacing: 14, alignment: .top)]
 
     @Environment(AppModel.self) private var model
@@ -54,16 +55,37 @@ struct ShelfView: View {
 
     private struct Key: Equatable { let status: Status; let token: Int }
 
+    /// 状態の切替え。5つをセグメントに詰めると窮屈なので、**横に流せるチップ**にしてある
+    /// （ラベルと冊数を両方出せて、将来 状態が増えても潰れない・2026-09-23 Keisuke の選択）。
     private var picker: some View {
-        Picker("状態", selection: $status) {
-            ForEach(Self.tabs) { s in
-                Text(model.counts[s.rawValue].map { "\(s.label) \($0)" } ?? s.label).tag(s)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Self.tabs) { s in
+                    Button { status = s } label: { chip(s) }
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
+        .background(.bar)
+    }
+
+    private func chip(_ s: Status) -> some View {
+        let selected = s == status
+        return HStack(spacing: 5) {
+            Text(s.label).font(.subheadline.weight(selected ? .semibold : .regular))
+            if let n = model.counts[s.rawValue] {
+                Text("\(n)")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(selected ? Color.white.opacity(0.85) : Color.secondary)
             }
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-        .background(.bar)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .foregroundStyle(selected ? Color.white : Color.primary)
+        .background(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
+                    in: Capsule())
     }
 
     private func cell(_ book: Book) -> some View {
