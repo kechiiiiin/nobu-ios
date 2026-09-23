@@ -1,6 +1,9 @@
 import SwiftUI
 
-/// 本のページ。状態の4択ワンタップ・ひとこと・読書の回。
+/// 本のページ。状態を **選ぶ → 日を決める → 「記録する」** の三手で確定する。ひとこと・読書の回・公開の切り替えも。
+///
+/// ⚠️ **状態を変える入口はここ一本**（2026-09-23）。本棚の格子からは変えられない（事故を減らすため）。
+/// 例外はスキャンだけで、あちらは今までどおり即「買った」＋5秒の取り消し（書店で数をさばくため）。
 struct BookView: View {
     let id: Int
 
@@ -11,7 +14,11 @@ struct BookView: View {
     @State private var detail: BookDetail?
     @State private var errorText: String?
     @State private var noteOpen = false
-    @State private var nudge: DateNudge?
+    /// いま選んでいる状態。**まだ何も保存していない**（確定は「記録する」）
+    @State private var pending: Status?
+    /// 「記録する」で残す日。既定は今日ひとつ
+    @State private var picked: Set<String> = []
+    @State private var recording = false
     @State private var editingBook = false
     @State private var confirmDelete = false
 
@@ -45,8 +52,15 @@ struct BookView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header(book)
                 statusPicker(book)
-                if let nudge {
-                    DateNudgeView(nudge: nudge, onDone: { self.nudge = nil }, onChanged: { await load() })
+                if let pending {
+                    RecordPanel(
+                        book: book,
+                        status: pending,
+                        picked: $picked,
+                        busy: recording,
+                        onCancel: { self.pending = nil },
+                        onCommit: { Task { await commit(pending) } }
+                    )
                 } else {
                     Text("\(book.status.label)：\(JST.jstDate(book.status_at))")
                         .font(.caption).foregroundStyle(.secondary)
@@ -56,6 +70,8 @@ struct BookView: View {
                 ReadingDaysSection(book: book, days: detail.days ?? [], sessions: detail.sessions, onChanged: { await load() })
 
                 SessionsSection(book: book, sessions: detail.sessions, onChanged: { await load() })
+
+                publicToggle(book)
 
                 notes(detail)
 
@@ -81,10 +97,12 @@ struct BookView: View {
         }
     }
 
+    /// 状態の5択。**押しても保存しない**——選ぶだけで、下に日付と「記録する」が出る。
+    /// いまの状態は下地の色、選んでいる最中のものは枠で示す。
     private func statusPicker(_ book: Book) -> some View {
         HStack(spacing: 4) {
             ForEach(Status.allCases) { status in
-                Button { Task { await setStatus(status) } } label: {
+                Button { choose(status) } label: {
                     // 5つ並ぶ（気になる／買った／読んでる／保留／読了）ので、狭い画面では縮める
                     Text(status.label)
                         .font(.footnote)
@@ -96,10 +114,32 @@ struct BookView: View {
                 .buttonStyle(.plain)
                 .background(book.status == status ? Color.accentColor : Color(.secondarySystemBackground),
                             in: RoundedRectangle(cornerRadius: 9))
+                .overlay {
+                    if pending == status {
+                        RoundedRectangle(cornerRadius: 9).strokeBorder(Color.accentColor, lineWidth: 2.5)
+                    }
+                }
                 .foregroundStyle(book.status == status ? Color.white : Color.primary)
                 .accessibilityAddTraits(book.status == status ? [.isSelected] : [])
+                .accessibilityHint(pending == status ? "選んでいます。「記録する」で確定します" : "選ぶと日付を決めてから記録します")
             }
         }
+    }
+
+    /// 本ごとの公開／非公開。**既定は公開**で、非公開にすると RSS に出なくなる
+    /// （アプリの本棚・記録には今までどおり出る）。
+    private func publicToggle(_ book: Book) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: Binding(get: { book.is_public == 1 }, set: { v in Task { await setPublic(v) } })) {
+                Text("この本を公開する").font(.subheadline)
+            }
+            Text(book.is_public == 1
+                 ? "RSS（/u/kechiiiiin/feed.xml）に、この本の記録が出ます。"
+                 : "RSS には出ません。本棚と記録には今までどおり出ます。")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder
@@ -172,38 +212,56 @@ struct BookView: View {
         }
     }
 
-    private func setStatus(_ status: Status) async {
-        guard let book = detail?.book else { return }
-        guard status != book.status else {
-            if status == .read { noteOpen = true }
+    /// 一手目。**ここでは保存しない**——選んだ印を付けて、日付と「記録する」を出すだけ。
+    /// 既定は「今日」が選ばれた状態なので、そのまま「記録する」を押せば一手で終わる。
+    private func choose(_ status: Status) {
+        guard !recording else { return }
+        if pending == status {
+            // もう一度押したら選ぶのをやめる
+            pending = nil
             return
         }
-        nudge = nil
+        pending = status
+        picked = [JST.today()]
+    }
+
+    /// 三手目。ここで初めて保存する（サーバー側で1バッチ＝途中で半分だけ残らない）
+    private func commit(_ status: Status) async {
+        guard let book = detail?.book, !recording, !picked.isEmpty else { return }
+        recording = true
+        defer { recording = false }
         do {
-            // 日付は今日で記録する（1タップで済む）。違えば直後に出る「昨日／日付を選ぶ」で直す
-            let result = try await NobuAPI.shared.patch(book.id, ["status": .string(status.rawValue)])
-            await load()
+            let result = try await NobuAPI.shared.record(book.id, status: status, days: picked.sorted())
+            detail = result.detail
+            pending = nil
             model.shelfChanged()
             if status == .read { noteOpen = true }
-            guard let eventID = result.event_id else { return }
-            let session = result.session
-            let started = session?.created_event_id == eventID && status == .reading
-            let finished = session?.finished_event_id == eventID && status == .read
-            if let session, started || finished {
-                nudge = DateNudge(kind: started ? .start : .finish, session: session, eventID: eventID)
-            } else {
-                toasts.show(Toast(text: "「\(status.label)」にしました", undo: {
-                    do {
-                        _ = try await NobuAPI.shared.undo(eventId: eventID)
-                        await load()
-                        model.shelfChanged()
-                    } catch {
-                        toasts.error(error)
-                    }
-                }))
+            guard let eventID = result.event_id else {
+                toasts.show("読んだ日を記録しました")
+                return
             }
+            toasts.show(Toast(text: "「\(status.label)」にしました", undo: {
+                do {
+                    _ = try await NobuAPI.shared.undo(eventId: eventID)
+                    await load()
+                    model.shelfChanged()
+                } catch {
+                    toasts.error(error)
+                }
+            }))
         } catch {
             toasts.error(error)
+        }
+    }
+
+    private func setPublic(_ isPublic: Bool) async {
+        guard let book = detail?.book else { return }
+        do {
+            detail?.book = try await NobuAPI.shared.setPublic(book.id, isPublic)
+            toasts.show(isPublic ? "公開にしました（RSS に出ます）" : "非公開にしました（RSS に出ません）")
+        } catch {
+            toasts.error(error)
+            await load()
         }
     }
 

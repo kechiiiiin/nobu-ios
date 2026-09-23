@@ -28,6 +28,9 @@ enum APIError: LocalizedError {
             case "not_latest":            return "最新の記録ではないので取り消せません"
             case "not_found":             return "見つかりませんでした"
             case "bad_cursor", "bad_limit": return "記録の続きを読めませんでした"
+            case "days_required":         return "日付を選んでください"
+            case "too_many_days":         return "日付が多すぎます"
+            case "bad_status":            return "状態が正しくありません"
             default:                      return "エラー（\(code) \(e)）"
             }
         }
@@ -170,9 +173,21 @@ final class NobuAPI {
         return try await call("POST", "/api/books", body: Body(manual: manual, status: status))
     }
 
-    /// 状態の切り替え（`on` は JST の日付・省略＝今日）・書誌の手直し
+    /// 状態の切り替え（`on` は JST の日付・省略＝今日）・書誌の手直し・公開/非公開
     func patch(_ id: Int, _ body: [String: JSONValue]) async throws -> PatchResponse {
         try await call("PATCH", "/api/books/\(id)", body: body)
+    }
+
+    /// 「記録する」。状態と日付をまとめて確定する（サーバー側で1バッチ＝途中で半分だけ残らない）。
+    /// `days` は JST の 'YYYY-MM-DD'。「読んでる」「読了」は複数、それ以外はひとつだけ
+    func record(_ id: Int, status: Status, days: [String]) async throws -> RecordResponse {
+        struct Body: Encodable { let status: Status; let days: [String] }
+        return try await call("POST", "/api/books/\(id)/record", body: Body(status: status, days: days))
+    }
+
+    /// 公開／非公開（非公開にすると RSS に出なくなる。本棚・記録には今までどおり出る）
+    func setPublic(_ id: Int, _ isPublic: Bool) async throws -> Book {
+        try await patch(id, ["is_public": .bool(isPublic)]).book
     }
 
     func addSession(bookId: Int, started: String?, finished: String?) async throws -> SessionResponse {

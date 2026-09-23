@@ -47,6 +47,8 @@ struct Candidate: Codable, Hashable, Sendable, Identifiable {
 
 struct Book: Codable, Hashable, Sendable, Identifiable {
     var id: Int
+    /// 持ち主。いまは1人だけ（Worker が古いときのために省略可にしてある）
+    var user_id: Int?
     var isbn13: String?
     var title: String
     var author: String?
@@ -139,6 +141,14 @@ struct BookDetail: Codable, Sendable {
     /// 読んだ日。新しい順。
     /// ⚠️ Worker より先にアプリだけ新しくなっても本のページが壊れないよう、省略可にしてある
     var days: [ReadingDay]?
+}
+
+/// 「記録する」の結果（POST /api/books/:id/record）。
+/// 状態の切り替えと読んだ日を1回で確定するので、返ってくるのは確定後の本のページまるごと
+struct RecordResponse: Decodable, Sendable {
+    var detail: BookDetail
+    /// 取り消し用。状態が変わらなかった（読んだ日だけ足した）ときは nil
+    var event_id: Int?
 }
 
 struct MeResponse: Codable, Sendable {
