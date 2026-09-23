@@ -27,6 +27,7 @@ enum APIError: LocalizedError {
             case "isbn_taken":            return "その ISBN の本がもうあります"
             case "not_latest":            return "最新の記録ではないので取り消せません"
             case "not_found":             return "見つかりませんでした"
+            case "bad_cursor", "bad_limit": return "記録の続きを読めませんでした"
             default:                      return "エラー（\(code) \(e)）"
             }
         }
@@ -143,6 +144,16 @@ final class NobuAPI {
     }
 
     func book(_ id: Int) async throws -> BookDetail { try await call("GET", "/api/books/\(id)") }
+
+    /// タイムライン（「記録」）。`before` は前のページの `next` をそのまま渡す（新しい順・続きは古い方へ）
+    func timeline(before: String? = nil, limit: Int = 50) async throws -> TimelineResponse {
+        var path = "/api/timeline?limit=\(limit)"
+        if let before, !before.isEmpty {
+            // カーソルには '#' が入る。エスケープしないとフラグメント扱いでクエリが切れる
+            path += "&before=\(before.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? "")"
+        }
+        return try await call("GET", path)
+    }
 
     func addCandidate(_ candidate: Candidate, status: Status) async throws -> AddResponse {
         struct Body: Encodable { let candidate: Candidate; let status: Status; let via = "search" }

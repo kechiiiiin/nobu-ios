@@ -1,15 +1,18 @@
 import SwiftUI
 
-/// 下タブ4つ。**左端は本棚**（開いてまず見たいのは持っている本なので、起動時もここ）。
-/// タブごとに `NavigationStack` を持ち、本のページはどのタブからも同じ形で開く。
+/// 下タブ5つ。**左端は記録**（日付ごとの時系列。開いてまず見たいのは「最近なにをしたか」なので、
+/// 起動時もここ・2026-09-23）。タブごとに `NavigationStack` を持ち、本のページはどのタブからも同じ形で開く。
 struct RootView: View {
-    enum TabID: Hashable { case shelf, search, scan, settings }
+    enum TabID: Hashable { case timeline, shelf, search, scan, settings }
 
     @Environment(ToastCenter.self) private var toasts
-    @State private var tab: TabID = .shelf
+    @State private var tab: TabID = .timeline
 
     var body: some View {
         TabView(selection: $tab) {
+            Tab("記録", systemImage: "clock", value: TabID.timeline) {
+                NavigationStack { TimelineView() }
+            }
             Tab("本棚", systemImage: "books.vertical", value: TabID.shelf) {
                 NavigationStack { ShelfView() }
             }
