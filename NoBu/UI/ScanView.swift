@@ -34,14 +34,21 @@ struct ScanView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .onAppear {
             camera.onConfirm = { isbn in Task { await register(isbn) } }
+            // タブを開いたらすぐ写る（「カメラを起動」を押させない）。
+            // 許可がまだなら iOS が一度だけ確認を出し、許されればそのまま始まる
+            if isSelected { camera.start() }
         }
         .onDisappear { camera.stop() }
         .onChange(of: isSelected) { _, selected in
-            if !selected { camera.stop() }
+            if selected { camera.start() } else { camera.stop() }
         }
         .onChange(of: scenePhase) { _, phase in
-            // 別のアプリに切り替えると iOS はカメラを止める。黙って死なないよう起動ボタンに戻す
-            if phase != .active { camera.stop("アプリを離れたのでカメラを止めました。もう一度起動してください。") }
+            // 別のアプリへ移ると iOS はカメラを止める。戻ってきたら黙って始め直す
+            if phase == .active {
+                if isSelected { camera.start() }
+            } else {
+                camera.stop()
+            }
         }
     }
 
