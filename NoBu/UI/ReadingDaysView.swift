@@ -80,7 +80,8 @@ struct ReadingDaysSection: View {
         let year = month.prefix(4)
         let m = Int(month.suffix(2)) ?? 0
         let count = monthDays.filter { marked.contains($0) }.count
-        return "\(year)年\(m)月　\(count)日"
+        // 数は「その月に読んだ日の数」。0 のときは出さない（「0日」が日付に見えるため）
+        return count > 0 ? "\(year)年\(m)月　読んだ日 \(count)日" : "\(year)年\(m)月"
     }
 
     private func cell(_ day: String) -> some View {

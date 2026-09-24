@@ -120,7 +120,8 @@ struct DayPicker: View {
         let year = shown.prefix(4)
         let m = Int(shown.suffix(2)) ?? 0
         let count = days.filter { selection.contains($0) }.count
-        return count > 0 ? "\(year)年\(m)月　\(count)日" : "\(year)年\(m)月"
+        // 数は「その月に読んだ日の数」。0 のときは出さない（「0日」が日付に見えるため）
+        return count > 0 ? "\(year)年\(m)月　読んだ日 \(count)日" : "\(year)年\(m)月"
     }
 
     private func cell(_ day: String) -> some View {
