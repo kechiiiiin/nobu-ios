@@ -5,6 +5,9 @@
 # ビルド成果物
 build/
 build-check/
+build-sim/
+build-uitest/
+*.xcresult
 DerivedData/
 
 # macOS

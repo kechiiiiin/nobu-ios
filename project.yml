@@ -39,6 +39,25 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
         ENABLE_PREVIEWS: YES
 
+  # 画面を実際にタップして確かめる UI テスト（シミュレータ専用）。
+  # `make check` / `make resign` では**ビルドされない**（スキームの build に入れていない）。
+  # 走らせるのは `make uitest` のときだけ。ローカルの Worker が要る。
+  NoBuUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: NoBuUITests
+    dependencies:
+      - target: NoBu
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.kechiiiiin.nobu.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7Z4R4TQPZL
+        TEST_TARGET_NAME: NoBu
+
 # xcodegen が暗黙に作るスキームは xcuserdata（毎回作り直される場所）にしか出ないので、
 # 共有スキームを明示する。これが無いと生成直後に `-scheme NoBu` が使えないことがある。
 schemes:
@@ -48,5 +67,9 @@ schemes:
         NoBu: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - NoBuUITests
     archive:
       config: Release

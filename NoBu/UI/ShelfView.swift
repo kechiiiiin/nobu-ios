@@ -62,17 +62,28 @@ struct ShelfView: View {
 
     /// 状態の切替え。5つをセグメントに詰めると窮屈なので、**横に流せるチップ**にしてある
     /// （ラベルと冊数を両方出せて、将来 状態が増えても潰れない・2026-09-23 Keisuke の選択）。
+    /// ⚠️ **`.scrollEdgeEffectHidden` を外さないこと**（2026-09-24 の不具合）。
+    /// iOS 26 は ScrollView の端に自動で「スクロールエッジ効果」を敷く。この横 ScrollView は
+    /// `safeAreaInset(edge: .top)` に置いてあるので、**枠がナビゲーションバーの下まで伸びる**——
+    /// つまり上端の効果の範囲がチップの帯をまるごと覆い、`.background(.bar)` と重なって
+    /// **チップが1つも描かれなくなる**。押せる・状態も変わる（当たり判定と読み直しは生きている）のに
+    /// 見えないので、既定の「読んでる」から切り替える手段が無くなっていた。
+    /// 見た目だけの不具合だったぶん、原因が読みにくい。効果を切れば帯もチップも普通に出る。
     private var picker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Self.tabs) { s in
                     Button { status = s } label: { chip(s) }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("shelf-chip-\(s.rawValue)")
+                        .accessibilityLabel(s.label)
+                        .accessibilityAddTraits(s == status ? [.isSelected] : [])
                 }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
+        .scrollEdgeEffectHidden(true, for: .all)
         .background(.bar)
     }
 

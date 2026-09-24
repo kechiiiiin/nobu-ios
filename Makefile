@@ -10,6 +10,7 @@
 #   make resign         7日ごとの再署名。iPhone を Mac に繋いでから叩く
 #   make check          実機なしでコンパイルだけ確かめる（署名しない・繋がなくてよい）
 #   make sim            iOS シミュレータ向けにビルドだけ通す（署名も実機も要らない）
+#   make uitest         シミュレータで画面を実際にタップして確かめる（先に ~/work/nobu で npm run dev）
 #   make import-access  Cloudflare Access のサービストークンを実機へ流し込む
 #   make launch         実機で起動してコンソールを見る（クラッシュ調査）
 #   make devices        繋がっている端末の一覧（DEVICE の UUID を確かめたいとき）
@@ -24,19 +25,25 @@
 #   - 初回インストール時だけ、実機で開発元を信頼する操作が要る
 #     （設定 → 一般 → VPN とデバイス管理 → Apple Development: kechiiiiin@gmail.com → 信頼）
 #   - カメラの許可は**ネイティブなので一度きり**（Web 版は開くたびに訊かれていた）
+#   - **DEBUG ビルドだけ**つなぎ先を差し替えられる（`-nobuBaseURL http://127.0.0.1:8787` か
+#     環境変数 `NOBU_BASE_URL`）。リリースビルドでは効かず、必ず本番を見る。`make uitest` がこれを使う
 
 DEVICE  = 8EAC2623-47F0-58AC-9DEF-8DD9AE4D6E55
 BUNDLE  = jp.kechiiiiin.nobu
 PROJECT = nobu-ios.xcodeproj
 SCHEME  = NoBu
 APP     = build/Build/Products/Debug-iphoneos/nobu.app
+# UI テストを回すシミュレータ（無ければ `make uitest` が作る）
+SIMNAME = NoBu-Sim
+SIMTYPE = iPhone 17
 
-.PHONY: help resign generate build install launch import-access check sim icon devices clean
+.PHONY: help resign generate build install launch import-access check sim uitest icon devices clean
 
 help:
 	@echo "resign          再署名（generate → build → install）。7日ごと・iPhone を繋いでから"
 	@echo "check           実機なしでコンパイルだけ確認（署名なし）"
 	@echo "sim             シミュレータ向けにビルドだけ通す"
+	@echo "uitest          シミュレータで画面を実際にタップして確かめる（先に ~/work/nobu で npm run dev）"
 	@echo "import-access   Cloudflare Access のサービストークンを実機へ流し込む（次の起動で Keychain へ）"
 	@echo "launch          実機で起動してコンソールを見る"
 	@echo "icon            アプリアイコン PNG を描き直す"
@@ -95,6 +102,20 @@ sim: generate
 	@rm -rf build-sim
 	@echo "✅ シミュレータ向けのビルドは通る"
 
+## シミュレータで画面を実際にタップして確かめる（本棚のチップ切替えなど）。
+## ⚠️ **先に別のタブで `cd ~/work/nobu && npm run dev`**（127.0.0.1:8787）。
+## 本番にも実機にも触らない。結果のスクリーンショットは build-uitest/result.xcresult に入る。
+uitest: generate
+	sh scripts/seed-local.sh
+	@xcrun simctl list devices | grep -q "$(SIMNAME) (" \
+	  || xcrun simctl create "$(SIMNAME)" "$(SIMTYPE)" > /dev/null
+	@xcrun simctl boot "$(SIMNAME)" 2>/dev/null || true
+	@rm -rf build-uitest/result.xcresult
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) \
+	  -destination "platform=iOS Simulator,name=$(SIMNAME)" -configuration Debug \
+	  -derivedDataPath build-uitest -resultBundlePath build-uitest/result.xcresult test
+	@echo "✅ 画面の確認まで通った（スクリーンショットは build-uitest/result.xcresult）"
+
 icon:
 	python3 scripts/gen-icon.py
 
@@ -102,4 +123,4 @@ devices:
 	xcrun devicectl list devices
 
 clean:
-	rm -rf build build-check build-sim $(PROJECT)
+	rm -rf build build-check build-sim build-uitest $(PROJECT)

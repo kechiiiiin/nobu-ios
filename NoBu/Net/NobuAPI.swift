@@ -53,7 +53,36 @@ private final class NoRedirect: NSObject, URLSessionTaskDelegate {
 final class NobuAPI {
     static let shared = NobuAPI()
 
-    static let baseURL = URL(string: "https://nobu.kechiiiiin.com")!
+    /// つなぎ先。既定は本番。**DEBUG ビルドのときだけ**差し替えられる（下の `resolveBaseURL`）
+    static let baseURL = resolveBaseURL()
+
+    static let productionURL = URL(string: "https://nobu.kechiiiiin.com")!
+
+    /// ⚠️ **リリースビルドでは宛先を変えられない**（`#if DEBUG` の外は本番一択）。
+    /// DEBUG のときだけ、シミュレータでローカルの Worker を見るために差し替えられる:
+    ///
+    ///     xcrun simctl launch <UDID> jp.kechiiiiin.nobu -nobuBaseURL http://127.0.0.1:8787
+    ///     NOBU_BASE_URL=http://127.0.0.1:8787   （Xcode のスキームの環境変数）
+    ///
+    /// 起動引数が環境変数より優先。http/https 以外と、ホストの無い URL は無視して本番へ落ちる。
+    private static func resolveBaseURL() -> URL {
+        #if DEBUG
+        func parse(_ raw: String?) -> URL? {
+            guard let raw, !raw.isEmpty, let url = URL(string: raw),
+                  let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+                  url.host?.isEmpty == false else { return nil }
+            return url
+        }
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "-nobuBaseURL"),
+           arguments.index(after: index) < arguments.endIndex,
+           let url = parse(arguments[arguments.index(after: index)]) {
+            return url
+        }
+        if let url = parse(ProcessInfo.processInfo.environment["NOBU_BASE_URL"]) { return url }
+        #endif
+        return productionURL
+    }
 
     private let session: URLSession
     private let noRedirect = NoRedirect()
