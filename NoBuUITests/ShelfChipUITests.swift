@@ -121,7 +121,7 @@ final class ShelfChipUITests: XCTestCase {
     }
 
     /// 同じ作りが他の画面にも無いかの見回り（記録タブ・本のページ）。
-    /// どちらも `safeAreaInset` の中に ScrollView を入れていないので巻き添えは無いはずだが、
+    /// どちらもバーの下に `safeAreaInset` で帯を差し込んでいないので巻き添えは無いはずだが、
     /// 見た目が壊れていないことをスクリーンショットで残しておく。
     func testOtherScreensStillRender() throws {
         let app = launchApp()
@@ -136,5 +136,34 @@ final class ShelfChipUITests: XCTestCase {
             XCTAssertTrue(app.buttons[label].waitForExistence(timeout: 30), "本のページに『\(label)』が無い")
         }
         shot(app, "8-book")
+    }
+
+    /// 記録タブの「同じ日に複数冊読んだ」行（2026-09-24 の不具合）。
+    /// 以前は書影ごとに NavigationLink を入れ子にしていて、List が書影のあいだに「>」を並べ、
+    /// 書名も「A／B」と繋げて崩れていた。いまは1冊の行と同じ形の**1つのリンク**で、押すとその日の一覧へ行く。
+    /// 前提: `scripts/seed-local.sh` が 検査・読了／保留／買った を 2026-09-22 に読んだことにしている。
+    func testMultiBookReadRowIsOneLink() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.staticTexts["検査・気になる"].waitForExistence(timeout: 30), "記録タブが出ない")
+
+        let row = app.buttons.matching(NSPredicate(
+            format: "label BEGINSWITH '読んだ：' AND label CONTAINS '検査・保留' AND label CONTAINS '検査・読了'")).firstMatch
+        for _ in 0..<8 where !(row.exists && row.isHittable) { app.swipeUp() }
+        XCTAssertTrue(row.exists && row.isHittable, "複数冊の「読んだ」行が見つからない")
+        shot(app, "9-timeline-multi-read")
+
+        row.tap()
+        XCTAssertTrue(app.navigationBars["2026-09-22 に読んだ本"].waitForExistence(timeout: 15),
+                      "複数冊の行を押しても、その日の一覧が開かない")
+        let item = { (title: String) in
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
+        }
+        for title in ["検査・読了", "検査・保留", "検査・買った"] {
+            XCTAssertTrue(item(title).waitForExistence(timeout: 15), "その日の一覧に『\(title)』が無い")
+        }
+        shot(app, "10-read-day")
+
+        item("検査・保留").tap()
+        XCTAssertTrue(app.buttons["保留"].waitForExistence(timeout: 30), "一覧から本のページへ行けない")
     }
 }
