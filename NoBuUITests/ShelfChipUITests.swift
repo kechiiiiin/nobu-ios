@@ -138,32 +138,32 @@ final class ShelfChipUITests: XCTestCase {
         shot(app, "8-book")
     }
 
-    /// 記録タブの「同じ日に複数冊読んだ」行（2026-09-24 の不具合）。
-    /// 以前は書影ごとに NavigationLink を入れ子にしていて、List が書影のあいだに「>」を並べ、
-    /// 書名も「A／B」と繋げて崩れていた。いまは1冊の行と同じ形の**1つのリンク**で、押すとその日の一覧へ行く。
+    /// 記録タブの「同じ日に複数冊読んだ」行（2026-09-24）。
+    /// Worker はまとめて1件（`books` 配列）で返すが、アプリ側で1冊ずつ・他の行と同じ形の
+    /// 別々の行へ展開する。書影のあいだに「>」が並んだり、書名を「A／B」と繋げたりしないこと、
+    /// 各行を押すとその本のページが開くことを確かめる。
     /// 前提: `scripts/seed-local.sh` が 検査・読了／保留／買った を 2026-09-22 に読んだことにしている。
     func testMultiBookReadRowIsOneLink() throws {
         let app = launchApp()
         XCTAssertTrue(app.staticTexts["検査・気になる"].waitForExistence(timeout: 30), "記録タブが出ない")
 
-        let row = app.buttons.matching(NSPredicate(
-            format: "label BEGINSWITH '読んだ：' AND label CONTAINS '検査・保留' AND label CONTAINS '検査・読了'")).firstMatch
-        for _ in 0..<8 where !(row.exists && row.isHittable) { app.swipeUp() }
-        XCTAssertTrue(row.exists && row.isHittable, "複数冊の「読んだ」行が見つからない")
+        // 3冊それぞれが独立した行になっているか
+        for title in ["検査・読了", "検査・保留", "検査・買った"] {
+            let cell = app.buttons.matching(NSPredicate(
+                format: "label CONTAINS %@ AND label CONTAINS '読んだ'", title)).firstMatch
+            for _ in 0..<8 where !(cell.exists && cell.isHittable) { app.swipeUp() }
+            XCTAssertTrue(cell.exists && cell.isHittable, "『\(title)』の「読んだ」行が見つからない")
+        }
+        // 複数冊が1行にまとまっていない（書名が連結された行が存在しない）ことも確かめる
+        let combined = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS '検査・保留' AND label CONTAINS '検査・読了'")).firstMatch
+        XCTAssertFalse(combined.exists, "複数冊が1行にまとまってしまっている（1冊ずつの行になっていない）")
         shot(app, "9-timeline-multi-read")
 
-        row.tap()
-        XCTAssertTrue(app.navigationBars["2026-09-22 に読んだ本"].waitForExistence(timeout: 15),
-                      "複数冊の行を押しても、その日の一覧が開かない")
-        let item = { (title: String) in
-            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
-        }
-        for title in ["検査・読了", "検査・保留", "検査・買った"] {
-            XCTAssertTrue(item(title).waitForExistence(timeout: 15), "その日の一覧に『\(title)』が無い")
-        }
-        shot(app, "10-read-day")
-
-        item("検査・保留").tap()
-        XCTAssertTrue(app.buttons["保留"].waitForExistence(timeout: 30), "一覧から本のページへ行けない")
+        let pausedRow = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS '検査・保留' AND label CONTAINS '読んだ'")).firstMatch
+        XCTAssertTrue(pausedRow.exists && pausedRow.isHittable, "『検査・保留』の行が押せない")
+        pausedRow.tap()
+        XCTAssertTrue(app.buttons["保留"].waitForExistence(timeout: 30), "行から本のページへ行けない")
     }
 }
