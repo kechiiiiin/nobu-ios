@@ -47,6 +47,9 @@ struct TimelineView: View {
             }
         }
         .listStyle(.plain)
+        // 素の List はバーの下に 22pt の余白を自前で足す（`scrollContent` の上マージン）。
+        // 日付の見出しには元から上下の余白があるので、重ねるとタイトルの下が間延びする（2026-09-24）
+        .contentMargins(.top, 0, for: .scrollContent)
         .navigationTitle("記録")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { SettingsToolbarItem() }
