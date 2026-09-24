@@ -19,7 +19,8 @@ struct ShelfView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16, pinnedViews: []) {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                picker
                 if let errorText {
                     Text(errorText).font(.callout).foregroundStyle(.red).padding(.horizontal)
                 }
@@ -48,7 +49,6 @@ struct ShelfView: View {
             }
             .padding(.vertical, 8)
         }
-        .safeAreaInset(edge: .top) { picker }
         .navigationTitle("本棚")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { SettingsToolbarItem() }
@@ -62,13 +62,16 @@ struct ShelfView: View {
 
     /// 状態の切替え。5つをセグメントに詰めると窮屈なので、**横に流せるチップ**にしてある
     /// （ラベルと冊数を両方出せて、将来 状態が増えても潰れない・2026-09-23 Keisuke の選択）。
-    /// ⚠️ **`.scrollEdgeEffectHidden` を外さないこと**（2026-09-24 の不具合）。
-    /// iOS 26 は ScrollView の端に自動で「スクロールエッジ効果」を敷く。この横 ScrollView は
-    /// `safeAreaInset(edge: .top)` に置いてあるので、**枠がナビゲーションバーの下まで伸びる**——
-    /// つまり上端の効果の範囲がチップの帯をまるごと覆い、`.background(.bar)` と重なって
-    /// **チップが1つも描かれなくなる**。押せる・状態も変わる（当たり判定と読み直しは生きている）のに
-    /// 見えないので、既定の「読んでる」から切り替える手段が無くなっていた。
-    /// 見た目だけの不具合だったぶん、原因が読みにくい。効果を切れば帯もチップも普通に出る。
+    ///
+    /// ⚠️ **チップは縦スクロールの中身の先頭に置く。`safeAreaInset(edge: .top)` に戻さないこと**（2026-09-24）。
+    /// 以前は `safeAreaInset` に置いて `.background(.bar)` を敷いていたが、そうすると横 ScrollView の枠が
+    /// ナビゲーションバーの下まで伸び、iOS 26 のスクロールエッジ効果（バーの下に敷かれるぼかし）と
+    /// 重なって**チップの帯が塗りつぶされ、1つも見えなくなった**（押せるし状態も変わるのに見えない）。
+    /// `.scrollEdgeEffectHidden` で打ち消すとシミュレータ（26.0〜26.5）では直ったが、実機の 26.6.2 では
+    /// 真っ黒のままだった——OS の装飾を打ち消す手はバージョンごとに効いたり効かなかったりする。
+    /// 中身の一部にしておけば、バーの装飾とはそもそも重ならない。スクロールすると一緒に上へ流れるが、
+    /// 上へ戻せば（ステータスバーのタップでも）また押せる。固定ヘッダ（pinned）にしないのも同じ理由で、
+    /// 固定するとバーの直下＝エッジ効果の縁に張りつくことになる。
     private var picker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -81,10 +84,7 @@ struct ShelfView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.vertical, 8)
         }
-        .scrollEdgeEffectHidden(true, for: .all)
-        .background(.bar)
     }
 
     private func chip(_ s: Status) -> some View {
